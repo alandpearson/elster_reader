@@ -11,7 +11,7 @@ I've also found the sensors recommended are (a) not available anymore (b) in aus
 
 This code has been tested in an Arduino Nano clone wiring a simple arduino IR line follower / obstacle avoidance sensor to digital 3.
 
-These sensors are available on ebay for £1.50. 
+These sensors are available on ebay for £1.50 - see the picture in pics directory.. 
 They have a IR send LED an IR receive LED and a nice opamp to turn it into digital format.
 Simply cut off the white transmit LED and turn the pot until the the circuit is trigged (LED on)
 Then back off the pot a little bit until the receive LED on the board goes out. Hold DIRECTLY infront (touching) the Elster IR port.
