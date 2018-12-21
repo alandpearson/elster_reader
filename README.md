@@ -28,13 +28,13 @@ You are looking to see that you receive 328 bytes of information. The code will 
 
   It will also flash an LED on digital 4 in time with IR pulse reception, helping you align the receiver to the IRDA port.
 
-  Pedro said - I have tried some IR sensors so far the only one working at the moment is RPM7138-R.  Alan said = Give up on the commercial IR sensors, They are designed for remote controls with noise filtering, automatic gain control  and all sorts of stuff to make your life hard. RPM7138-R is discontinued.
+  Pedro said - I have tried some IR sensors so far the only one working at the moment is RPM7138-R.  Alan said = Give up on the commercial IR sensors, They are designed for remote controls with noise filtering, automatic gain control  and all sorts of stuff to make your life hard. RPM7138-R is discontinued. Trust me, I know. I order 8 from mouser, each different. None worked reliably. For those determined to use these, I found that ones optimised for 'short bursts' work at least somewhat, long burst ones not at all. YMMV.
 
-  Based on Dave's code to read an elter a100c for more info on that vist:
+  Based on Dave's code to read an elster A100C 
   http://www.rotwang.co.uk/projects/meter.html
   Thanks Dave.
 
-  Based on Pedros code here :
+  Based on Pedros code to read an Elster A1100 
   https://github.com/priveros/Elster_A1100
   Thanks Pedro.
 
