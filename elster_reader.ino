@@ -1,29 +1,65 @@
 /*
-  This code is been tested in an Arduino Uno clone wiring a comercial infrared
-  sensor in pin 2. it will print to to the serial just when it detects a change
+  This code is been tested in an Arduino Nano clone wiring a simple arduino IR distance sensor to digital 3.
+  These sensors are available on ebay for £1.50. Simple cut off the white transmit LED and turn the pot until the the circuit is trigged (LED on)
+  Then back of the pot a little bit until the LED goes out. Hold DIRECTLY infront (touching) the Elster IR port.
+  The green LED shoud flash like mad and you're in business.
+  
+  It will print to to the serial just when it detects a change
   in Total Imports, Total exports or a change in direction (0=Importing , 1=Exporting)
 
-  I have tried some IR sensors so far the only one working at the moment is RPM7138-R
+  It will also flash an LED on digital 4 in time with IR pulse reception.
+
+  Pedro said - I have tried some IR sensors so far the only one working at the moment is RPM7138-R
+  Alan said = Give up on the commercial IR sensors, They are designed for remote controls with noise filtering 
+  and all sorts of stuff to make your life hard. RPM7138-R is discontinued.
 
   Based on Dave's code to read an elter a100c for more info on that vist:
   http://www.rotwang.co.uk/projects/meter.html
   Thanks Dave.
+
+  Based on Pedros code here :
+  https://github.com/priveros/Elster_A1100
+  Thanks Pedro.
+
 */
-const uint8_t intPin = 5;
+
+//The Elster A1100 seems to run at a higher baud rate by default 
 #define BIT_PERIOD 860 // us
+
+//This is apparently what the A100c uses
 //#define BIT_PERIOD 416 // us
-//#define BIT_PERIOD 840 // us
 
 
-//#define BIT_PERIOD 416 // us
 
 #define BUFF_SIZE 64
 volatile long data[BUFF_SIZE];
+
+// in & out - in is written to as every bit is read by the ISR
+// out is what we are processing / decoding into a bytestream
 volatile uint8_t in;
 volatile uint8_t out;
-volatile unsigned long last_us;
+
+//last time a bit was received
+volatile unsigned long last_us ;
+
+//debug to STDOUT
 uint8_t dbug = 1;
 
+//LED on or off
+bool LED = 0 ;
+
+
+
+void toggleLed() {
+    LED = !LED ;
+    digitalWrite(4, LED) ;
+}
+
+
+//Interupt handler.
+//Here we use IRQ 1 (ping digital 3)
+//All this does is record the microsecond time stamp
+//of a bit being received. The decoding is done in the loop
 ISR(INT1_vect) {
   unsigned long us = micros();
   unsigned long diff = us - last_us;
@@ -35,38 +71,44 @@ ISR(INT1_vect) {
     in = next;
   }
 
+  toggleLed() ;
 }
 
 void setup() {
-  //pinMode(intPin, INPUT);
+
   in = out = 0;
   Serial.begin(57600);
-  //EICRA |= 3;    //RISING interrupt
-  EICRA = 12;    //falling interrupt
 
+// Setup interrupts, see here :
+// https://sites.google.com/site/qeewiki/books/avr-guide/external-interrupts-on-the-atmega328
+
+  EICRA = 12;    //falling interrupt on IRQ1
   EIMSK = 2;
+
+
+  pinMode(4, OUTPUT) ;
+
 
   if (dbug) Serial.print("Start ........\r\n");
   last_us = micros();
 }
+
 
 unsigned int statusFlag;
 float imports;
 float exports;
 
 void loop() {
-  //    decode_buff();
   int rd = decode_buff();
   if (!rd) return;
   if (rd == 3) {
     rd = 4;
     Serial.println("");
-    Serial.print("imports");    Serial.print(imports);    Serial.print("\t");
+    Serial.print("imports:");    Serial.print(imports);    Serial.print("\t");
     Serial.print("exports:");    Serial.print(exports) ; Serial.print("\t");
     Serial.print("statusFlag:");    Serial.print(statusFlag); Serial.println("");
   }
-  //   unsigned long end_time = millis() + 6000;
-  //   while (end_time >= millis()) ;
+
 }
 
 float last_data;
@@ -83,18 +125,27 @@ uint8_t pSum = 0;
 uint16_t BCC = 0;
 uint8_t eom = 1;
 
+
+//Where the work is done decoding each bit
+//Best you read the Elster manual on this, appendix A
+//It takes a little while to get your head around it, but when you do 
+//it's not so bad. Really.
+// https://www.camax.co.uk/downloads/A1100-Manual.pdf
+
 static int decode_buff(void) {
   if (in == out) return 0;
   int next = out + 1;
   if (next >= BUFF_SIZE) next = 0;
   //p seems to be which 'bit' number we are curently receiving
-  //each transmitted frame is 10bits
+  //each transmitted frame is 10bits long
   int p = (((data[out]) + (BIT_PERIOD / 2)) / BIT_PERIOD);
   //if (dbug) {
     //Serial.print(data[out]);
     //Serial.print(" ");
     //if (p > 500) Serial.println("<-");
  // }
+
+ //if we received more than 500 bits, consider it a new frame
   if (p > 500) {
     idx = BCC = eom = imps = exps = sFlag = 0;
     out = next;
@@ -115,7 +166,9 @@ static int decode_buff(void) {
   bit_shft = (bit_left < p) ? bit_left : p;
   
   //if we have 10bits then we have a frame
+  
   /*
+   * easier to read logic than pedros' shorthand C.. ugh.
   if (psum ==10) {
       psum = p ;
   } else if (pSum + p > 10) {
@@ -150,22 +203,30 @@ static int decode_buff(void) {
     if (idx > idx_max) {
       idx_max = idx ;
     } else {
-      Serial.print("bytes received=") ; Serial.println(idx_max) ;
+      if (dbug) {
+        //we should have received 328 bytes if all is good
+        Serial.print("bytes received=") ; Serial.print(idx_max) ; Serial.println("/328.");
+      }
       idx_max = 0 ;
     }
     if (idx != 328) BCC = (BCC + byt_msg) & 255;
     //if (dbug){Serial.print("[");Serial.print(idx);Serial.print(":");Serial.print(byt_msg,HEX); Serial.print("]");}
     //if (dbug){Serial.print((char)byt_msg) & 0x7f;}
 
+    //now decode what each byte actually is
+    
     if (idx >= 95 && idx <= 101)
+      //import kwh first
       imps += ((float)byt_msg - 48) * pow(10 , (101 - idx));
     if (idx == 103)
       imps += ((float)byt_msg - 48) / 10;
     if (idx >= 114 && idx <= 120)
+       //export kwh
       exps += ((float)byt_msg - 48) * pow(10 , (120 - idx));
     if (idx == 122)
       exps += ((float)byt_msg - 48) / 10;
     if (idx == 210)
+      //status flag
       sFlag = (byt_msg - 48) >> 3; //1=Exporting ; 0=Importing
     if (byt_msg == 3) eom = 2;
     if (idx == 328) {
