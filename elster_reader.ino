@@ -24,7 +24,16 @@
   https://github.com/priveros/Elster_A1100
   Thanks Pedro.
 
+  For the curious, here is what a real received IRDA packet looks like when converted to ASCII
+  OB96.1.1(Elster A1100)0.2.0(2-01166-K)96.1.0(000000)0.0.0(--------11278044)0.2.1(0000)1.8.1(0021325.5kWh)2.8.1(0000000.0kWh)1.8.2(0000000.0kWh)2.8.2(0000000.0kWh)1.8.0(0021325.5kWh)2.8.0(0000000.0kWh)96.5.0(01)96.4*0(01)97.97.0(00)96.8.1(025775Hrs)96.8.2(000000Hrs)96.7.0(000040)96.52.0(000008)96.53.0(000000)96.54.0(000000)x
+
+
 */
+
+
+//debug to STDOUT - you'll need this. I know you will. But it will make your eyes bleed
+//lookout for the commented (if DEBUG) statements too.
+#undef DEBUG
 
 //The Elster A1100 seems to run at a higher baud rate by default
 #define BIT_PERIOD 860 // us
@@ -45,10 +54,7 @@ volatile uint8_t out;
 //last time a bit was received
 volatile unsigned long last_us ;
 
-//debug to STDOUT
-uint8_t dbug = 0;
-
-//LED on or off
+//LED toggle on or off
 bool LED = 0 ;
 
 //which pin indicator LED is on
@@ -115,7 +121,9 @@ void setup() {
 
   pinMode(ledPin, OUTPUT) ;
 
-  Serial.print("A1100 reader started. :0:0:0");
+  Serial.println("#A1100 reader started");
+  Serial.println("#import_reading : export_reading : status_flag");
+
   last_us = micros();
 }
 
@@ -126,16 +134,12 @@ void loop() {
   if (!rd) {
     //ledOff() ;
   } else if (rd == 3) {
+    //Good decode !
     ledOff() ;
-
     rd = 4;
-    Serial.println("");
-    Serial.print("imports:");    Serial.print(imports);    Serial.print("\t");
-    Serial.print("exports:");    Serial.print(exports);    Serial.print("\t");
-    Serial.print("statusFlag:"); Serial.println(statusFlag);
+    Serial.print(imports);    Serial.print(":"); Serial.print(exports); Serial.print(":"); Serial.println(statusFlag);
   }
 
-  //ledOff() ;
 
 }
 
@@ -148,20 +152,24 @@ void loop() {
 // https://www.camax.co.uk/downloads/A1100-Manual.pdf
 
 static int decode_buff(void) {
-  
+
   if (in == out) return 0;
   int next = out + 1;
   if (next >= BUFF_SIZE) next = 0;
   //p seems to be which 'bit' number we are curently receiving
   //each transmitted frame is 10bits long
   int p = (((data[out]) + (BIT_PERIOD / 2)) / BIT_PERIOD);
-  //if (dbug) {
-  //Serial.print(data[out]);
-  //Serial.print(" ");
-  //if (p > 500) Serial.println("<-");
-  // }
 
-  //if we received more than 500 bits, consider it a new frame
+  /*
+
+    #IFDEF DEBUG
+    Serial.print(data[out]);
+     Serial.print(" ");
+    if (p > 500) Serial.println("<-");
+    #ENDIF
+
+  */
+  //if we received more than 500 bits, consider it a new frame, it's garbage
   if (p > 500) {
     idx = BCC = eom = imps = exps = sFlag = 0;
     out = next;
@@ -223,17 +231,34 @@ static int decode_buff(void) {
       idx_max = idx ;
 
     } else {
-      if (dbug) {
-        //we should have received 328 bytes if all is good
-        Serial.print("bytes received=") ; Serial.print(idx_max) ; Serial.println("/328.");
-      }
+
+#ifdef DEBUG
+      //we should have received 328 bytes if all is good
+      Serial.print("bytes received=") ; Serial.print(idx_max) ; Serial.println("/328.");
+#endif
+
+
       idx_max = 0 ;
     }
-    if (idx != 328) BCC = (BCC + byt_msg) & 255;
-    //if (dbug){Serial.print("[");Serial.print(idx);Serial.print(":");Serial.print(byt_msg,HEX); Serial.print("]");}
-    //if (dbug){Serial.print((char)byt_msg) & 0x7f;}
+    if (idx != 328) {
+      //Keep calculating what the BCC should be
+      BCC = (BCC + byt_msg) & 255;
+    }
+
+#ifdef DEBUG
+    //Serial.print("[");Serial.print(idx);Serial.print(":");Serial.print(byt_msg,HEX); Serial.print("]");
+    if (idx != 328) {
+      Serial.print((char)byt_msg) & 0x7f;
+    } else {
+      Serial.println(byt_msg >> (pSum == 10 ? 1 : 2), HEX);
+    }
+
+#endif
 
     //now decode what each byte actually is
+    //Umm, yeah. I think there may be an easier way, but this appears to work.
+    //I think the better approach to this whole problem is to receive the entire bytestring
+    //then run it through a parser. But hey, this works and I'm grateful for it.
 
     if (idx >= 95 && idx <= 101)
       //import kwh first
@@ -252,28 +277,64 @@ static int decode_buff(void) {
     if (byt_msg == 3) eom = 2;
 
     if (idx == 328) {
-      //full message has been received now
-      if ((byt_msg >> (pSum == 10 ? (((~BCC) & 0b1000000) ? 0 : 1) : 2)) == ((~BCC) & 0x7F)) {
-       // if (last_data != (imps + exps + sFlag)) {
+      //We are now receiving binary check digit (BCC)
+      bool bccGood = false ;
+
+      if (pSum == 10) {
+        //All bits of BCC have been received. Now check it is correct.
+#ifdef DEBUG
+        Serial.println("");
+#endif
+
+        if ((~BCC) & 0b1000000) {
+          if (byt_msg >> 0 == ((~BCC) & 0x7F) ) {
+            bccGood = true ;
+          }
+        } else {
+          if (byt_msg >> 1 == ((~BCC) & 0x7F) ) {
+            bccGood = true ;
+          }
+        }
+
+      }
+
+      if (bccGood) {
+        imports = imps;
+        exports = exps;
+        statusFlag = sFlag;
+        last_data = imps + exps + sFlag;
+        out = next;
+        return 3;
+
+      } else {
+        //binary check failed
+#ifdef DEBUG
+        Serial.println("BCC checksum does not match.");
+        Serial.print("imps:"); Serial.println(imps);
+        Serial.print("exps:"); Serial.println(exps);
+        Serial.print("sFlag:"); Serial.println(sFlag);
+        Serial.print("pSum"); Serial.println(pSum);
+        Serial.print("received BCC:"); Serial.println(byt_msg >> (pSum == 10 ? 1 : 2), BIN);
+        //Binary check digit
+        Serial.print("calculated BCC:");  Serial.println((~BCC) & 0x7F, BIN); //BCC calculated
+#endif
+      }
+      /*
+         OMG - this condensed (& double embedded if:then:else below has been santisied into above ^^
+        if ((byt_msg >> (pSum == 10 ? (((~BCC) & 0b1000000) ? 0 : 1) : 2)) == ((~BCC) & 0x7F)) {
+        // if (last_data != (imps + exps + sFlag)) {
           imports = imps;
           exports = exps;
           statusFlag = sFlag;
           last_data = imps + exps + sFlag;
           out = next;
           return 3;
-       // }
-      }
-      if (dbug) {
-        Serial.print("imps:"); Serial.println(imps);
-        Serial.print("exps:"); Serial.println(exps);
-        Serial.print("sFlag:"); Serial.println(sFlag);
-        Serial.print("pSum"); Serial.println(pSum);
-        Serial.print("byt_msg:"); Serial.println(byt_msg >> (pSum == 10 ? 1 : 2), BIN);
-        //Binary check digit
-        Serial.print("BCC:");  Serial.println((~BCC) & 0x7F, BIN); //BCC calculated
+        // }
+        }
+      */
 
-      }
-    }
+
+    } // if(idx==328)
   }
   out = next;
   return 0;
