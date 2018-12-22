@@ -1,0 +1,15 @@
+[Unit]
+Description=Elster A1100 Meter logger
+After=network.target mosquitto.service
+
+[Service]
+Restart=on-failure
+User=solar
+TimeoutSec=5min
+IgnoreSIGPIPE=no
+KillMode=process
+GuessMainPID=no
+ExecStart=/home/solar/elster_reader/elster.pl
+
+[Install]
+WantedBy=multi-user.target

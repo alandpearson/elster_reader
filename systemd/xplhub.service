@@ -1,0 +1,16 @@
+[Unit]
+Description=xPL Hub Service
+After=network.target
+
+[Service]
+Type=forking
+Restart=on-failure
+User=solar
+TimeoutSec=5min
+IgnoreSIGPIPE=no
+KillMode=mixed
+GuessMainPID=no
+ExecStart=/home/solar/modbus/lib/xPL4Linux/examples/xPL_Hub
+
+[Install]
+WantedBy=multi-user.target
