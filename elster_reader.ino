@@ -7,14 +7,12 @@
   Don't forget the back side of the LED as light leaks in there easily (all the LEDs inside your case for example).
   I found blutack great for this.
 
-  It will print to to the serial just when it detects a change
-  in Total Imports, Total exports or a change in direction (0=Importing , 1=Exporting)
-
+  It will print Total Imports, Total exports & direction (0=Importing , 1=Exporting) to the serial port on every read if the BCC checksum is correct.
   It will also flash an LED on digital 4 in time with IR pulse reception.
 
   Pedro said - I have tried some IR sensors so far the only one working at the moment is RPM7138-R
   Alan said = Give up on the commercial IR sensors, They are designed for remote controls with noise filtering
-  and all sorts of stuff to make your life hard. RPM7138-R is discontinued.
+  and all sorts of stuff to make your life hard. RPM7138-R is discontinued. See the README.MD file
 
   Based on Dave's code to read an elter a100c for more info on that vist:
   http://www.rotwang.co.uk/projects/meter.html
@@ -24,24 +22,24 @@
   https://github.com/priveros/Elster_A1100
   Thanks Pedro.
 
-  For the curious, here is what a real received IRDA packet looks like when converted to ASCII
-  OB96.1.1(Elster A1100)0.2.0(2-01166-K)96.1.0(000000)0.0.0(--------11278044)0.2.1(0000)1.8.1(0021325.5kWh)2.8.1(0000000.0kWh)1.8.2(0000000.0kWh)2.8.2(0000000.0kWh)1.8.0(0021325.5kWh)2.8.0(0000000.0kWh)96.5.0(01)96.4*0(01)97.97.0(00)96.8.1(025775Hrs)96.8.2(000000Hrs)96.7.0(000040)96.52.0(000008)96.53.0(000000)96.54.0(000000)x
-
+  For the curious, here is what a real received IRDA packet looks like when printed as ASCII char type (with &07f to remove startbit) 
+  OB96.1.1(Elster A1100)0.2.0(2-01166-K)96.1.0(000000)0.0.0(--------11278044)0.2.1(0000)1.8.1(0021325.5kWh)2.8.1(0000000.0kWh)1.8.2(0000000.0kWh)2.8.2(0000000.0kWh)1.8.0(0021325.5kWh)2.8.0(0000000.0kWh)96.5.0(01)96.4*0(01)97.97.0(00)96.8.1(025775Hrs)96.8.2(000000Hrs)96.7.0(000040)96.52.0(000008)96.53.0(000000)96.54.0(000000)<BCC>
 
 */
 
 
 //debug to STDOUT - you'll need this. I know you will. But it will make your eyes bleed
-//lookout for the commented (if DEBUG) statements too.
+//lookout for the commented (ifdef DEBUG) statements too.
 #undef DEBUG
 
-//The Elster A1100 seems to run at a higher baud rate by default
+// This will print the uSecs each 'mark' was received on IR by the interrupt handler
+// handy to see if you are getting a somewhat consistent datastream coming in
+// timings should be almost the same from msg to msg or else you have interference or poor reception
+// don't use this at the same time as #define DEBUG or it will give non-sensical output.
+#undef DEBUG_BITRX
+
+//The Elster A1100 seems to run at a higher baud rate by default, the A100C used 416us, but this code won't work with a A100C
 #define BIT_PERIOD 860 // us
-
-//This is apparently what the A100c uses
-//#define BIT_PERIOD 416 // us
-
-
 
 #define BUFF_SIZE 64
 volatile long data[BUFF_SIZE];
@@ -92,9 +90,9 @@ void ledOff() {
 }
 
 //Interupt handler.
-//Here we use IRQ 1 (ping digital 3)
+//Here we use IRQ 1 (pin digital 3)
 //All this does is record the microsecond time stamp
-//of a bit being received. The decoding is done in the loop
+//of a '1' bit being received. The decoding of the full byte is done in decode_buff
 ISR(INT1_vect) {
   unsigned long us = micros();
   unsigned long diff = us - last_us;
@@ -117,7 +115,7 @@ void setup() {
   // https://sites.google.com/site/qeewiki/books/avr-guide/external-interrupts-on-the-atmega328
 
   EICRA = 12;    //falling interrupt on IRQ1
-  EIMSK = 2;
+  EIMSK = 2;    //only care about IRQ1
 
   pinMode(ledPin, OUTPUT) ;
 
@@ -160,15 +158,16 @@ static int decode_buff(void) {
   //each transmitted frame is 10bits long
   int p = (((data[out]) + (BIT_PERIOD / 2)) / BIT_PERIOD);
 
-  /*
 
-    #IFDEF DEBUG
+
+#ifdef DEBUG_BITRX
+    //debug bit reception timings
     Serial.print(data[out]);
      Serial.print(" ");
     if (p > 500) Serial.println("<-");
-    #ENDIF
+#endif
 
-  */
+
   //if we received more than 500 bits, consider it a new frame, it's garbage
   if (p > 500) {
     idx = BCC = eom = imps = exps = sFlag = 0;
@@ -278,6 +277,7 @@ static int decode_buff(void) {
 
     if (idx == 328) {
       //We are now receiving binary check digit (BCC)
+      //begin if-then-else sanity.
       bool bccGood = false ;
 
       if (pSum == 10) {
@@ -321,6 +321,7 @@ static int decode_buff(void) {
       }
       /*
          OMG - this condensed (& double embedded if:then:else below has been santisied into above ^^
+         end if-then-else insanity ye who enter here.
         if ((byt_msg >> (pSum == 10 ? (((~BCC) & 0b1000000) ? 0 : 1) : 2)) == ((~BCC) & 0x7F)) {
         // if (last_data != (imps + exps + sFlag)) {
           imports = imps;
