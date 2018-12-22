@@ -114,7 +114,7 @@ void setup() {
   // Setup interrupts, see here :
   // https://sites.google.com/site/qeewiki/books/avr-guide/external-interrupts-on-the-atmega328
 
-  EICRA = 12;    //falling interrupt on IRQ1
+  EICRA = 8;    //falling interrupt on IRQ1
   EIMSK = 2;    //only care about IRQ1
 
   pinMode(ledPin, OUTPUT) ;
@@ -135,7 +135,7 @@ void loop() {
     //Good decode !
     ledOff() ;
     rd = 4;
-    Serial.print(imports);    Serial.print(":"); Serial.print(exports); Serial.print(":"); Serial.println(statusFlag);
+    Serial.println() ; Serial.print(imports);    Serial.print(":"); Serial.print(exports); Serial.print(":"); Serial.print(statusFlag);
   }
 
 
