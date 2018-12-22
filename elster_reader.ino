@@ -115,7 +115,7 @@ void setup() {
 
   pinMode(ledPin, OUTPUT) ;
 
-  if (dbug) Serial.print("A1100 reader started.");
+  Serial.print("A1100 reader started. :0:0:0");
   last_us = micros();
 }
 
@@ -124,8 +124,10 @@ void loop() {
   int rd = decode_buff();
 
   if (!rd) {
-    ledOff() ;
+    //ledOff() ;
   } else if (rd == 3) {
+    ledOff() ;
+
     rd = 4;
     Serial.println("");
     Serial.print("imports:");    Serial.print(imports);    Serial.print("\t");
@@ -133,7 +135,7 @@ void loop() {
     Serial.print("statusFlag:"); Serial.println(statusFlag);
   }
 
-  ledOff() ;
+  //ledOff() ;
 
 }
 
@@ -252,14 +254,14 @@ static int decode_buff(void) {
     if (idx == 328) {
       //full message has been received now
       if ((byt_msg >> (pSum == 10 ? (((~BCC) & 0b1000000) ? 0 : 1) : 2)) == ((~BCC) & 0x7F)) {
-        if (last_data != (imps + exps + sFlag)) {
+       // if (last_data != (imps + exps + sFlag)) {
           imports = imps;
           exports = exps;
           statusFlag = sFlag;
           last_data = imps + exps + sFlag;
           out = next;
           return 3;
-        }
+       // }
       }
       if (dbug) {
         Serial.print("imps:"); Serial.println(imps);
