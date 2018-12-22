@@ -17,8 +17,7 @@ use POSIX  'strftime';
 
 use Config::Simple;
 
-#my $cfg = new Config::Simple('/etc/elster.cfg') ;
-my $cfg = new Config::Simple('./elster.cfg') ;
+my $cfg = new Config::Simple('/etc/elster.cfg') ;
 
 my $mqtt ;
 my $sel ;
@@ -128,21 +127,21 @@ sub logCSV {
 		#print ("Logging to: $csvfile");
 		# add file header to csvfile (if file exists & is empty)
 		if ( -z $csvfile ) {
-			print CSVFILE "#DATE,TIMESTAMP,ETOTAL,MODE\n" ;
+			print CSVFILE "#DATE,TIMESTAMP,IMPORTKWH,EXPORTKWH,STATE\n" ;
 		}
 
 
 # write data to csvfile & close it
 		my $unixTimeStamp = time;                           # secs since epoch
 		my $dateTimeStr = &getDateTime($unixTimeStamp);
-		my $csvLine = "$dateTimeStr,$unixTimeStamp,$pvData{ETOTAL},$pvData{MODE}";
+		my $csvLine = "$dateTimeStr,$unixTimeStamp,$pvData{IMPORTKWH},$pvData{EXPORTKWH},$pvData{STATE}";
 
 		print CSVFILE "$csvLine\n";
 		close (CSVFILE);
 
 		# Log live state
 		open (ELSTATE,">" . $cfg->param('state_file') ) || warn ("*** WARNING Could not open state file" . $cfg->param('state_file') . " $!\n" );
-		print ELSTATE time() . "," .  eval($pvData{ETOTAL}) . ",$pvData{MODE}\n";
+		print ELSTATE time() . "," .  eval($pvData{IMPORTKWH}) . ",$pvData{EXPORTKWH}" . ",$pvData{STATE}\n";
 		close (ELSTATE) ;
 
 	}
