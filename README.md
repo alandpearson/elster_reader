@@ -13,7 +13,7 @@ This code has been tested in an Arduino Nano clone wiring a simple arduino IR li
 
 These sensors are available on ebay for £1.50 - see the picture in pics directory.. 
 They have a IR send LED an IR receive LED and a nice opamp to turn it into digital format.
-Simply cut off the white transmit LED and turn the pot until the the circuit is trigged (LED on)
+Simply cut off the white transmit LED and turn the pot until the the circuit is triggeredd (LED on)
 Then back off the pot a little bit until the receive LED on the board goes out. Hold DIRECTLY infront (touching) the Elster IR port.
 The green LED shoud flash like mad and you're in business.
 
@@ -23,7 +23,7 @@ I found blutack great for this.
 
 The code itself will print to to the serial just when it successfully decodes a reading.
 
-Setting this up for the first time, turn I recommend enabling DEBUG.
+Setting this up for the first time, then I recommend enabling DEBUG.
 You are looking to see that you receive 328 bytes of information. The code will tell you how many it has received.
 You are looking to see that if there are a lot of errors (or garbage) align your IR LED better and maybe reduce / increase the gain.
 Avoid light leakage and try and seal the IR LED to the case to avoid this (including reflections).
