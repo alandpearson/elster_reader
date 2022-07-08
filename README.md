@@ -40,5 +40,9 @@ The code will also flash an LED on digital 4 in time with IR pulse reception, he
   https://github.com/priveros/Elster_A1100
   Thanks Pedro.
 
+Additionally this repo also contains a companion 'logger' program. This runs on a linux box, connects to serial port and logs the received data to a file as well as posting it via MQTT. 
+I use the MQTT post to log to my OpenEnergyMonitor 'emonpi/emonbase'.  Of course, you can configure how you would like.
+
+
 enjoy
 
