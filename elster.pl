@@ -73,22 +73,25 @@ sub openSerial {
 sub meterRead {
 	
 	# Get the running statistics
+	my $data =  <SERIAL> ;
+	if ($data ne EOF) {
+		chop $data ; chop $data ; #remove CR/LF
 
-	my $data = <SERIAL>;
-	chop $data ; chop $data ; #remove CR/LF
-
-	if ($data =~ /\d.*:\d.*:\d.*/ ) {
-		my @reading = split (':', $data) ;
-		$meterData{IMPORTKWH} = $reading[0];
-		$meterData{EXPORTKWH} = $reading[1];
-		$meterData{STATE} = $reading[2];
-		$meterData{MANF} = "Elster" ;
-		$meterData{MODEL} = "A1100" ;
-		$meterData{SERIAL} = $cfg->param('meter_serial') ;
-		$rc=0;
-	} else {
-		logit("BAD DATA Received  - reconnect");
-		$rc=1;
+		if ($data =~ /\d*\.?\d*:\d*\.?\d*:\d*\.?\d*/ ) {
+			my @reading = split (':', $data) ;
+			$meterData{IMPORTKWH} = $reading[0];
+			$meterData{EXPORTKWH} = $reading[1];
+			$meterData{STATE} = $reading[2];
+			$meterData{MANF} = "Elster" ;
+			$meterData{MODEL} = "A1100" ;
+			$meterData{SERIAL} = $cfg->param('meter_serial') ;
+			$rc=0;
+		} else {
+			logit("BAD DATA Received");
+			$rc=1;
+		}
+	} else { 
+		$rc=-1;
 	}
 
 
@@ -257,29 +260,35 @@ while (1) {
 
 	if ( openSerial() == 0 ) {
 		%meterData = () ;
-		while (! meterRead() ) {
-			if ( (time() - $lastCSVWrite) > $cfg->param('csv_write_secs') ) {
-				logCSV(%meterData) ;
-				$lastCSVWrite = time() ;
-			}
-
-			if ($cfg->param('xpl_enabled') eq "true") {
-				xplSend(%meterData);
-			}
-
-			if ($cfg->param('mqtt_enabled') eq "true") {
-				if ( (time() - $lastMqttSend) > $cfg->param('mqtt_send_secs') ) {
-					$lastMqttSend = time() ;
-					mqttSend(%meterData);
+		while (! meterRead() != -1 ) {
+			if (%meterData) {
+				if ( (time() - $lastCSVWrite) > $cfg->param('csv_write_secs') ) {
+					logCSV(%meterData) ;
+					$lastCSVWrite = time() ;
 				}
+
+				if ($cfg->param('xpl_enabled') eq "true") {
+					xplSend(%meterData);
+				}
+
+				if ($cfg->param('mqtt_enabled') eq "true") {
+					if ( (time() - $lastMqttSend) > $cfg->param('mqtt_send_secs') ) {
+						$lastMqttSend = time() ;
+						mqttSend(%meterData);
+					}
+				}
+			} else {
+				#print "BAD data\n";
 			}
 
 			$mqtt->tick() ;
-		}		
-
+		} 
+		#Bad data received
+		#logit("Bad data received") ;
+		#meterRead return -1, serial port bad
 		$serialOb->close() ;
 	} else {
-		sleep (60) ;
+		sleep (1) ;
 	}
 }
 
