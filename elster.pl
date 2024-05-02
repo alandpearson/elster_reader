@@ -28,6 +28,7 @@ my $sel ;
 # Shouldn't really touch anything under this point !						#
 #################################################################################################
 
+$ENV{MQTT_SIMPLE_ALLOW_INSECURE_LOGIN} = 1;
 
 # XPL vars
 my $separator = '-' x 80 ;
@@ -76,7 +77,6 @@ sub meterRead {
 	my $data =  <SERIAL> ;
 	if ($data ne EOF) {
 		chop $data ; chop $data ; #remove CR/LF
-
 		if ($data =~ /\d*\.?\d*:\d*\.?\d*:\d*\.?\d*/ ) {
 			my @reading = split (':', $data) ;
 			$meterData{IMPORTKWH} = $reading[0];
@@ -238,7 +238,8 @@ logit("Elster Logger started") ;
 
 if ($cfg->param('mqtt_enabled') eq "true") {
 	logit ("MQTT enabled");
-	$mqtt = Net::MQTT::Simple::Auth->new($cfg->param('mqtt_hostname'), $cfg->param('mqtt_user'), $cfg->param('mqtt_pass') );
+	$mqtt = Net::MQTT::Simple::->new($cfg->param('mqtt_hostname') );
+	$mqtt->login($cfg->param('mqtt_user'), $cfg->param('mqtt_pass')) ;
 	if ( $mqtt ) {
 		logit ("MQTT connected to broker " . $cfg->param('mqtt_hostname')) ;
 	} else {
@@ -262,7 +263,7 @@ while (1) {
 		%meterData = () ;
 		while (! meterRead() != -1 ) {
 			if (%meterData) {
-				if ( (time() - $lastCSVWrite) > $cfg->param('csv_write_secs') ) {
+				if ( ($cfg->param('csv_enabled') eq "true") && ((time() - $lastCSVWrite) > $cfg->param('csv_write_secs')) ) {
 					logCSV(%meterData) ;
 					$lastCSVWrite = time() ;
 				}
