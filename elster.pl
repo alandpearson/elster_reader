@@ -28,6 +28,7 @@ my $sel ;
 # Shouldn't really touch anything under this point !						#
 #################################################################################################
 
+$ENV{MQTT_SIMPLE_ALLOW_INSECURE_LOGIN} = 1;
 
 # XPL vars
 my $separator = '-' x 80 ;
@@ -73,22 +74,24 @@ sub openSerial {
 sub meterRead {
 	
 	# Get the running statistics
-
-	my $data = <SERIAL>;
-	chop $data ; chop $data ; #remove CR/LF
-
-	if ($data =~ /\d.*:\d.*:\d.*/ ) {
-		my @reading = split (':', $data) ;
-		$meterData{IMPORTKWH} = $reading[0];
-		$meterData{EXPORTKWH} = $reading[1];
-		$meterData{STATE} = $reading[2];
-		$meterData{MANF} = "Elster" ;
-		$meterData{MODEL} = "A1100" ;
-		$meterData{SERIAL} = $cfg->param('meter_serial') ;
-		$rc=0;
-	} else {
-		logit("BAD DATA Received  - reconnect");
-		$rc=1;
+	my $data =  <SERIAL> ;
+	if ($data ne EOF) {
+		chop $data ; chop $data ; #remove CR/LF
+		if ($data =~ /\d*\.?\d*:\d*\.?\d*:\d*\.?\d*/ ) {
+			my @reading = split (':', $data) ;
+			$meterData{IMPORTKWH} = $reading[0];
+			$meterData{EXPORTKWH} = $reading[1];
+			$meterData{STATE} = $reading[2];
+			$meterData{MANF} = "Elster" ;
+			$meterData{MODEL} = "A1100" ;
+			$meterData{SERIAL} = $cfg->param('meter_serial') ;
+			$rc=0;
+		} else {
+			logit("BAD DATA Received");
+			$rc=1;
+		}
+	} else { 
+		$rc=-1;
 	}
 
 
@@ -235,7 +238,8 @@ logit("Elster Logger started") ;
 
 if ($cfg->param('mqtt_enabled') eq "true") {
 	logit ("MQTT enabled");
-	$mqtt = Net::MQTT::Simple::Auth->new($cfg->param('mqtt_hostname'), $cfg->param('mqtt_user'), $cfg->param('mqtt_pass') );
+	$mqtt = Net::MQTT::Simple::->new($cfg->param('mqtt_hostname') );
+	$mqtt->login($cfg->param('mqtt_user'), $cfg->param('mqtt_pass')) ;
 	if ( $mqtt ) {
 		logit ("MQTT connected to broker " . $cfg->param('mqtt_hostname')) ;
 	} else {
@@ -257,29 +261,35 @@ while (1) {
 
 	if ( openSerial() == 0 ) {
 		%meterData = () ;
-		while (! meterRead() ) {
-			if ( (time() - $lastCSVWrite) > $cfg->param('csv_write_secs') ) {
-				logCSV(%meterData) ;
-				$lastCSVWrite = time() ;
-			}
-
-			if ($cfg->param('xpl_enabled') eq "true") {
-				xplSend(%meterData);
-			}
-
-			if ($cfg->param('mqtt_enabled') eq "true") {
-				if ( (time() - $lastMqttSend) > $cfg->param('mqtt_send_secs') ) {
-					$lastMqttSend = time() ;
-					mqttSend(%meterData);
+		while (! meterRead() != -1 ) {
+			if (%meterData) {
+				if ( ($cfg->param('csv_enabled') eq "true") && ((time() - $lastCSVWrite) > $cfg->param('csv_write_secs')) ) {
+					logCSV(%meterData) ;
+					$lastCSVWrite = time() ;
 				}
+
+				if ($cfg->param('xpl_enabled') eq "true") {
+					xplSend(%meterData);
+				}
+
+				if ($cfg->param('mqtt_enabled') eq "true") {
+					if ( (time() - $lastMqttSend) > $cfg->param('mqtt_send_secs') ) {
+						$lastMqttSend = time() ;
+						mqttSend(%meterData);
+					}
+				}
+			} else {
+				#print "BAD data\n";
 			}
 
 			$mqtt->tick() ;
-		}		
-
+		} 
+		#Bad data received
+		#logit("Bad data received") ;
+		#meterRead return -1, serial port bad
 		$serialOb->close() ;
 	} else {
-		sleep (60) ;
+		sleep (1) ;
 	}
 }
 
