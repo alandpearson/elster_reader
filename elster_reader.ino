@@ -30,7 +30,7 @@
 
 //debug to STDOUT - you'll need this. I know you will. But it will make your eyes bleed
 //lookout for the commented (ifdef DEBUG) statements too.
-#undef DEBUG
+#define DEBUG
 
 // This will print the uSecs each 'mark' was received on IR by the interrupt handler
 // handy to see if you are getting a somewhat consistent datastream coming in
