@@ -87,7 +87,7 @@ sub meterRead {
 			$meterData{SERIAL} = $cfg->param('meter_serial') ;
 			$rc=0;
 		} else {
-			logit("BAD DATA Received");
+			#logit("BAD DATA Received $data");
 			$rc=1;
 		}
 	} else { 
@@ -218,7 +218,8 @@ sub logit {
 
         my $msg = "$_[0]";
         my $timestamp = strftime('%H:%M:%S', localtime) ;
-        my $logfile = $cfg->param('log_dir') . "/elster_" . &getDate_YYYYMMDD() . ".log";
+        my $logfile = $cfg->param('log_dir') . "/elster_reader.log";
+	#my $logfile = $cfg->param('log_dir') . "/elster_" . &getDate_YYYYMMDD() . ".log";
 
         if ( open(LOG, ">>$logfile") ) {
                 print LOG "[$timestamp] $msg\n" ;
